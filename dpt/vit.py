@@ -44,7 +44,8 @@ def get_attention(name):
 
 def get_mean_attention_map(attn, token, shape):
     attn = attn[:, :, token, 1:]
-    attn = attn.unflatten(2, torch.Size([shape[2] // 16, shape[3] // 16])).float()
+    #attn = attn.unflatten(2, torch.Size([shape[2] // 16, shape[3] // 16])).float()
+    attn = attn.view(attn.shape[0], attn.shape[1], torch.Size([shape[2] // 16, shape[3] // 16])).float()
     attn = torch.nn.functional.interpolate(
         attn, size=shape[2:], mode="bicubic", align_corners=False
     ).squeeze(0)
@@ -101,6 +102,17 @@ class Transpose(nn.Module):
         return x
 
 
+class View(nn.Module):
+    def __init__(self, dim0, dim1):
+        super(View, self).__init__()
+        self.dim0 = dim0
+        self.dim1 = dim1
+
+    def forward(self, x):
+        x = x.view(x.shape[0], x.shape[1], torch.Size([self.dim0, self.dim1]))
+        #x = x.view(x.shape[0], x.shape[1], torch.Size([size[0] // 16, size[1] // 16]))
+        return x
+
 def forward_vit(pretrained, x):
     b, c, h, w = x.shape
 
@@ -115,7 +127,7 @@ def forward_vit(pretrained, x):
     layer_2 = pretrained.act_postprocess2[0:2](layer_2)
     layer_3 = pretrained.act_postprocess3[0:2](layer_3)
     layer_4 = pretrained.act_postprocess4[0:2](layer_4)
-
+    """
     unflatten = nn.Sequential(
         nn.Unflatten(
             2,
@@ -136,7 +148,39 @@ def forward_vit(pretrained, x):
         layer_3 = unflatten(layer_3)
     if layer_4.ndim == 3:
         layer_4 = unflatten(layer_4)
+    """
 
+    if layer_1.ndim == 3:
+        layer_1 = layer_1.view(
+                layer_1.shape[0], 
+                layer_1.shape[1], 
+                h // pretrained.model.patch_size[1],
+                w // pretrained.model.patch_size[0],
+                )
+            
+    if layer_2.ndim == 3:
+        layer_2 = layer_2.view(
+                layer_2.shape[0], 
+                layer_2.shape[1], 
+                h // pretrained.model.patch_size[1],
+                w // pretrained.model.patch_size[0],
+                )
+            
+    if layer_3.ndim == 3:
+        layer_3 = layer_3.view(
+                layer_3.shape[0], 
+                layer_3.shape[1], 
+                h // pretrained.model.patch_size[1],
+                w // pretrained.model.patch_size[0],
+                )
+
+    if layer_4.ndim == 3:
+        layer_4 = layer_4.view(
+                layer_4.shape[0], 
+                layer_4.shape[1], 
+                h // pretrained.model.patch_size[1],
+                w // pretrained.model.patch_size[0],
+                )
     layer_1 = pretrained.act_postprocess1[3 : len(pretrained.act_postprocess1)](layer_1)
     layer_2 = pretrained.act_postprocess2[3 : len(pretrained.act_postprocess2)](layer_2)
     layer_3 = pretrained.act_postprocess3[3 : len(pretrained.act_postprocess3)](layer_3)
@@ -259,7 +303,8 @@ def _make_vit_b16_backbone(
     pretrained.act_postprocess1 = nn.Sequential(
         readout_oper[0],
         Transpose(1, 2),
-        nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        #nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        View(size[0] // 16, size[1] // 16),
         nn.Conv2d(
             in_channels=vit_features,
             out_channels=features[0],
@@ -282,7 +327,8 @@ def _make_vit_b16_backbone(
     pretrained.act_postprocess2 = nn.Sequential(
         readout_oper[1],
         Transpose(1, 2),
-        nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        #nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        View(size[0] // 16, size[1] // 16),
         nn.Conv2d(
             in_channels=vit_features,
             out_channels=features[1],
@@ -305,7 +351,8 @@ def _make_vit_b16_backbone(
     pretrained.act_postprocess3 = nn.Sequential(
         readout_oper[2],
         Transpose(1, 2),
-        nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        #nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        View(size[0] // 16, size[1] // 16),
         nn.Conv2d(
             in_channels=vit_features,
             out_channels=features[2],
@@ -318,7 +365,8 @@ def _make_vit_b16_backbone(
     pretrained.act_postprocess4 = nn.Sequential(
         readout_oper[3],
         Transpose(1, 2),
-        nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        #nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        View(size[0] // 16, size[1] // 16),
         nn.Conv2d(
             in_channels=vit_features,
             out_channels=features[3],
@@ -392,7 +440,8 @@ def _make_vit_b_rn50_backbone(
         pretrained.act_postprocess1 = nn.Sequential(
             readout_oper[0],
             Transpose(1, 2),
-            nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+            #nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+            View(size[0] // 16, size[1] // 16),
             nn.Conv2d(
                 in_channels=vit_features,
                 out_channels=features[0],
@@ -415,7 +464,8 @@ def _make_vit_b_rn50_backbone(
         pretrained.act_postprocess2 = nn.Sequential(
             readout_oper[1],
             Transpose(1, 2),
-            nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+            #nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+            View(size[0] // 16, size[1] // 16),
             nn.Conv2d(
                 in_channels=vit_features,
                 out_channels=features[1],
@@ -445,7 +495,8 @@ def _make_vit_b_rn50_backbone(
     pretrained.act_postprocess3 = nn.Sequential(
         readout_oper[2],
         Transpose(1, 2),
-        nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        #nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        View(size[0] // 16, size[1] // 16),
         nn.Conv2d(
             in_channels=vit_features,
             out_channels=features[2],
@@ -458,7 +509,8 @@ def _make_vit_b_rn50_backbone(
     pretrained.act_postprocess4 = nn.Sequential(
         readout_oper[3],
         Transpose(1, 2),
-        nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        #nn.Unflatten(2, torch.Size([size[0] // 16, size[1] // 16])),
+        View(size[0] // 16, size[1] // 16),
         nn.Conv2d(
             in_channels=vit_features,
             out_channels=features[3],
